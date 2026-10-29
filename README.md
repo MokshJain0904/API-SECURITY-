@@ -103,22 +103,43 @@ When a request is received, the verifier executes the following steps in order:
 
 Because the project uses standard ES modules (`import`/`export`), it should be served via any local HTTP server (browsers restrict ES module loading via raw `file://` protocol due to CORS security policies).
 
-### Option A: Using Python (Recommended)
+### Option A: Run the real Node.js API (Recommended)
+The repository includes a dependency-free Node.js API server. It serves the frontend and verifies
+signed requests on the server side, keeping the server key out of the browser verifier.
+
+```bash
+node server.js
+```
+
+Then navigate to: [http://localhost:8000](http://localhost:8000)
+
+The health endpoint is available at [http://localhost:8000/health](http://localhost:8000/health).
+Configure production values with environment variables such as `API_SECRET`, `API_KEY_ID`,
+`TIMESTAMP_TOLERANCE_SECONDS`, and `NONCE_TTL_SECONDS`. Never commit a production secret.
+
+### Option B: Static frontend with Python
 Open a terminal in the project directory and run:
 ```bash
 python -m http.server 8000
 ```
 Then navigate to: [http://localhost:8000](http://localhost:8000)
 
-### Option B: Using Node.js
+### Option C: Using another static Node.js server
 ```bash
 npx serve .
 # or
 npx http-server .
 ```
 
-### Option C: Running the Test Suite
+### Option D: Running the Test Suite
 Visit [http://localhost:8000/tests/tests.html](http://localhost:8000/tests/tests.html) in your browser. All 14+ automated unit and integration tests will execute automatically with pass/fail telemetry.
+
+### Real API request flow
+The **Send to Server** button sends the signed request to the real `POST /api/v1/*` endpoint.
+The server validates required headers, timestamp freshness, nonce uniqueness, canonical request
+reconstruction, and HMAC-SHA256 using Node's `timingSafeEqual`. Only after verification does it
+return the simulated payment response. The nonce cache is server-side and expires according to
+`NONCE_TTL_SECONDS`.
 
 ---
 

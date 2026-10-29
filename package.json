@@ -1,0 +1,14 @@
+{
+  "name": "api-security-crypto-framework",
+  "version": "1.0.0",
+  "private": true,
+  "description": "HMAC-authenticated API security playground with a real Node.js API",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node tests/node-verify.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

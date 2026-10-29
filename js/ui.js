@@ -403,22 +403,39 @@ export class UIController {
   }
 
   /**
-   * Dispatches the current signed request to the simulated server verifier.
+   * Dispatches the current signed request to the real local API server.
+   * The browser verifier remains available for the educational attack lab.
    */
   async handleSendToServer() {
     if (!this.currentSignedRequest) {
       await this.handleSignRequest();
     }
 
-    this.syncServerKey();
-    const result = await this.verifier.verifyRequest(this.currentSignedRequest);
+    const signed = this.currentSignedRequest;
+    const query = signed.query ? `?${signed.query}` : '';
+    const response = await fetch(`${signed.path}${query}`, {
+      method: signed.method,
+      headers: {
+        ...signed.headers,
+        'Content-Type': 'application/json'
+      },
+      body: signed.body || undefined
+    });
+    const payload = await response.json();
+    const result = payload.verification || payload;
     this.renderVerificationResult(result);
 
     this.logEvent({
       type: result.ok ? 'ACCEPTED' : 'REJECTED',
-      message: `${this.currentSignedRequest.method} ${this.currentSignedRequest.path} -> ${result.reason}`,
-      details: result.ok ? 'Valid signature & fresh nonce' : `Failed at: ${result.details?.stepFailed}`
+      message: `${signed.method} ${signed.path} -> ${result.reason || payload.error}`,
+      details: result.ok ? 'Accepted by the real API server' : `Failed at: ${result.details?.stepFailed || 'server'}`
     });
+
+    if (response.ok) {
+      this.showToast('Real API server accepted the request', 'success');
+    } else {
+      this.showToast(`Real API server rejected the request: ${result.reason || payload.error}`, 'error');
+    }
   }
 
   /**
