@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Request Integrity Test Runner | Cryptographic Security Suite</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --card-border: #334155;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --pass: #10b981;
+      --pass-bg: rgba(16, 185, 129, 0.15);
+      --fail: #ef4444;
+      --fail-bg: rgba(239, 68, 68, 0.15);
+      --accent: #38bdf8;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      line-height: 1.5;
+      padding: 2rem 1rem;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    header {
+      margin-bottom: 2rem;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-top: 0.25rem;
+    }
+
+    .btn {
+      background: #0284c7;
+      color: #fff;
+      border: none;
+      padding: 0.6rem 1.2rem;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn:hover { background: #0369a1; }
+
+    .summary-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .summary-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 1.2rem;
+      text-align: center;
+    }
+
+    .summary-val {
+      font-size: 2.2rem;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      line-height: 1.2;
+    }
+
+    .summary-label {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-top: 0.25rem;
+    }
+
+    .val-pass { color: var(--pass); }
+    .val-fail { color: var(--fail); }
+    .val-total { color: var(--accent); }
+
+    .table-container {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+      text-align: left;
+    }
+
+    th {
+      background: #1e293b;
+      padding: 0.85rem 1rem;
+      color: var(--text-muted);
+      font-weight: 600;
+      border-bottom: 1px solid var(--card-border);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    td {
+      padding: 0.85rem 1rem;
+      border-bottom: 1px solid var(--card-border);
+      vertical-align: middle;
+    }
+
+    tr:last-child td { border-bottom: none; }
+    tr:hover { background: rgba(255, 255, 255, 0.02); }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 0.75rem;
+      font-family: var(--font-mono);
+    }
+    .badge-pass {
+      background: var(--pass-bg);
+      color: var(--pass);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .badge-fail {
+      background: var(--fail-bg);
+      color: var(--fail);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .mono {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+    }
+
+    .test-name {
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .test-desc {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 0.2rem;
+    }
+
+    .nav-link {
+      display: inline-block;
+      margin-top: 1.5rem;
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+    .nav-link:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>
+          <span>🛡️</span> Cryptographic Security Test Suite
+        </h1>
+        <div class="subtitle">Micro-project unit & integration verification runner for WebCrypto HMAC-SHA256 & anti-replay</div>
+      </div>
+      <div>
+        <button id="rerun-btn" class="btn">⚡ Re-run Tests</button>
+      </div>
+    </header>
+
+    <div class="summary-cards">
+      <div class="summary-card">
+        <div id="stat-total" class="summary-val val-total">0</div>
+        <div class="summary-label">Total Tests</div>
+      </div>
+      <div class="summary-card">
+        <div id="stat-passed" class="summary-val val-pass">0</div>
+        <div class="summary-label">Passed</div>
+      </div>
+      <div class="summary-card">
+        <div id="stat-failed" class="summary-val val-fail">0</div>
+        <div class="summary-label">Failed</div>
+      </div>
+      <div class="summary-card">
+        <div id="stat-duration" class="summary-val">0ms</div>
+        <div class="summary-label">Execution Time</div>
+      </div>
+    </div>
+
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 50px;">#</th>
+            <th>Test Specification</th>
+            <th style="width: 140px;">Category</th>
+            <th style="width: 100px;">Status</th>
+            <th style="width: 80px;">Time</th>
+          </tr>
+        </thead>
+        <tbody id="test-results-body">
+          <tr>
+            <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+              Executing cryptographic test suite...
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <a href="../index.html" class="nav-link">← Return to Interactive API Security Playground</a>
+  </div>
+
+  <script type="module">
+    import {
+      sha256Hex,
+      computeHmacSha256,
+      constantTimeEqual,
+      generateRandomKeyHex,
+      generateRandomNonce,
+      bufferToHex,
+      hexToBuffer
+    } from '../js/crypto.js';
+
+    import {
+      canonicalizeQuery,
+      normalizePath,
+      buildCanonicalString,
+      signRequest
+    } from '../js/signer.js';
+
+    import { ApiVerifier } from '../js/verifier.js';
+    import {
+      simulatePayloadTampering,
+      simulateReplayAttack,
+      simulateExpiredTimestamp,
+      simulateWrongSecretKey,
+      simulatePathTampering
+    } from '../js/attacks.js';
+
+    /** Tiny assertion library */
+    function assert(condition, message) {
+      if (!condition) {
+        throw new Error(message || 'Assertion failed');
+      }
+    }
+
+    function assertEqual(actual, expected, message) {
+      if (actual !== expected) {
+        throw new Error(`${message ? message + ': ' : ''}Expected "${expected}", received "${actual}"`);
+      }
+    }
+
+    /** Test Registry */
+    const tests = [
+      {
+        name: 'RFC 4231 Test Vector 2 (HMAC-SHA256)',
+        category: 'Crypto Primitives',
+        desc: 'Verifies HMAC-SHA256 implementation against standard RFC 4231 test vector 2 (Key: "Jefe")',
+        fn: async () => {
+          const key = 'Jefe';
+          const data = 'what do ya want for nothing?';
+          const expected = '5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843';
+          const result = await computeHmacSha256(key, data);
+          assertEqual(result.toLowerCase(), expected, 'HMAC-SHA256 mismatch with RFC 4231 Test Vector 2');
+        }
+      },
+      {
+        name: 'SHA-256 Digest of Empty String',
+        category: 'Crypto Primitives',
+        desc: 'Validates SHA-256 standard hash of empty payload (e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855)',
+        fn: async () => {
+          const expected = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+          const result = await sha256Hex('');
+          assertEqual(result.toLowerCase(), expected, 'SHA-256 empty string hash mismatch');
+        }
+      },
+      {
+        name: 'Constant-Time String Comparison Correctness',
+        category: 'Side-Channel Defense',
+        desc: 'Verifies constantTimeEqual returns true for equal strings and false for mismatched lengths or content',
+        fn: async () => {
+          const sig1 = '5bdcc146bf60754e6a04242608957504ac33e8b15d01a99d024b1e45a8002d0f';
+          const sig2 = '5bdcc146bf60754e6a04242608957504ac33e8b15d01a99d024b1e45a8002d0f';
+          const sig3 = '5bdcc146bf60754e6a04242608957504ac33e8b15d01a99d024b1e45a8002d0e'; // last char changed
+          const shortSig = '5bdcc146bf';
+
+          assert(constantTimeEqual(sig1, sig2), 'Identical strings must return true');
+          assert(!constantTimeEqual(sig1, sig3), 'Single-character difference must return false');
+          assert(!constantTimeEqual(sig1, shortSig), 'Different length strings must return false');
+          assert(!constantTimeEqual(null, sig1), 'Non-string inputs must return false');
+        }
+      },
+      {
+        name: 'Deterministic Query Parameter Canonicalization',
+        category: 'Canonicalization',
+        desc: 'Sorts query parameters alphabetically and strips leading question marks (b=2&a=1 -> a=1&b=2)',
+        fn: async () => {
+          const sorted1 = canonicalizeQuery('?z=last&a=first&m=middle');
+          assertEqual(sorted1, 'a=first&m=middle&z=last');
+
+          const sorted2 = canonicalizeQuery({ beta: '2', alpha: '1' });
+          assertEqual(sorted2, 'alpha=1&beta=2');
+
+          const empty = canonicalizeQuery('');
+          assertEqual(empty, '');
+        }
+      },
+      {
+        name: 'Path Normalization',
+        category: 'Canonicalization',
+        desc: 'Ensures paths have a leading slash and removes trailing slashes (except root)',
+        fn: async () => {
+          assertEqual(normalizePath('api/v1/users/'), '/api/v1/users');
+          assertEqual(normalizePath('/'), '/');
+          assertEqual(normalizePath(''), '/');
+        }
+      },
+      {
+        name: 'Client Signer Generates Valid Signed Request Package',
+        category: 'Signer',
+        desc: 'Produces X-Timestamp, X-Nonce, X-Signature, and canonical string',
+        fn: async () => {
+          const key = 'secret-test-key-123';
+          const signed = await signRequest({
+            method: 'POST',
+            path: '/api/v1/transfer',
+            query: 'b=2&a=1',
+            body: '{"amount":100}',
+            secretKey: key
+          });
+
+          assert(signed.headers['X-Timestamp'], 'Missing X-Timestamp header');
+          assert(signed.headers['X-Nonce'], 'Missing X-Nonce header');
+          assert(signed.headers['X-Signature'], 'Missing X-Signature header');
+          assertEqual(signed.headers['X-Signature'].length, 64, 'HMAC-SHA256 hex signature must be 64 characters');
+          assert(signed.canonicalString.includes('POST\n/api/v1/transfer\na=1&b=2'), 'Canonical string missing normalized fields');
+        }
+      },
+      {
+        name: 'Server Verifier Accepts Legitimate Request',
+        category: 'Verification Flow',
+        desc: 'Simulated server verifies signature, freshness, and nonce successfully',
+        fn: async () => {
+          const secretKey = 'shared-secure-secret-key-456';
+          const verifier = new ApiVerifier({ serverSecretKey: secretKey, timestampToleranceSec: 60 });
+
+          const signed = await signRequest({
+            method: 'POST',
+            path: '/api/v1/orders',
+            body: '{"item":"widget","qty":5}',
+            secretKey
+          });
+
+          const res = await verifier.verifyRequest(signed);
+          assert(res.ok === true, `Expected verification to succeed, failed with: ${res.reason}`);
+          assertEqual(res.steps.length, 5, 'Must complete all 5 verification steps');
+        }
+      },
+      {
+        name: 'Attack Scenario 1: Payload Tampering Rejection',
+        category: 'Security Defenses',
+        desc: 'Altering body in transit fails HMAC signature check at Step 5',
+        fn: async () => {
+          const secretKey = 'shared-secret-key-789';
+          const verifier = new ApiVerifier({ serverSecretKey: secretKey });
+
+          const signed = await signRequest({
+            method: 'POST',
+            path: '/api/v1/transfer',
+            body: '{"amount":100,"to":"Alice"}',
+            secretKey
+          });
+
+          const attack = await simulatePayloadTampering(signed, verifier, secretKey);
+          assert(attack.result.ok === false, 'Tampered request must be rejected');
+          assertEqual(attack.result.details.stepFailed, 'signature', 'Tampered request must fail on signature check');
+        }
+      },
+      {
+        name: 'Attack Scenario 2: Replay Attack Rejection',
+        category: 'Security Defenses',
+        desc: 'Re-sending an identical request with a used nonce is rejected at Step 3',
+        fn: async () => {
+          const secretKey = 'shared-secret-key-replay-demo';
+          const verifier = new ApiVerifier({ serverSecretKey: secretKey });
+
+          const signed = await signRequest({
+            method: 'POST',
+            path: '/api/v1/payment',
+            body: '{"amount":50}',
+            secretKey
+          });
+
+          const attack = await simulateReplayAttack(signed, verifier, secretKey);
+          assert(attack.firstSubmission.ok === true, 'First submission must succeed');
+          assert(attack.result.ok === false, 'Replayed submission must be rejected');
+          assertEqual(attack.result.details.stepFailed, 'nonce', 'Replayed submission must fail on nonce cache check');
+        }
+      },
+      {
+        name: 'Attack Scenario 3: Expired Timestamp Rejection',
+        category: 'Security Defenses',
+        desc: 'Requests with timestamp older than tolerance window are rejected at Step 2',
+        fn: async () => {
+          const secretKey = 'shared-secret-expiry-demo';
+          const verifier = new ApiVerifier({ serverSecretKey: secretKey, timestampToleranceSec: 60 });
+
+          const attack = await simulateExpiredTimestamp(
+            { method: 'POST', path: '/api/v1/ping', body: '{}' },
+            verifier,
+            secretKey,
+            secretKey,
+            120 // 120 seconds old
+          );
+
+          assert(attack.result.ok === false, 'Expired request must be rejected');
+          assertEqual(attack.result.details.stepFailed, 'timestamp', 'Must fail on timestamp freshness check');
+        }
+      },
+      {
+        name: 'Attack Scenario 4: Wrong Secret Key Rejection',
+        category: 'Security Defenses',
+        desc: 'Request signed by an unauthorized key is rejected at Step 5',
+        fn: async () => {
+          const serverKey = 'legitimate-server-master-key';
+          const attackerKey = 'attacker-guessing-key-xyz';
+          const verifier = new ApiVerifier({ serverSecretKey: serverKey });
+
+          const attack = await simulateWrongSecretKey(
+            { method: 'POST', path: '/api/v1/admin/roles', body: '{"role":"admin"}' },
+            verifier,
+            serverKey,
+            attackerKey
+          );
+
+          assert(attack.result.ok === false, 'Forged request must be rejected');
+          assertEqual(attack.result.details.stepFailed, 'signature', 'Must fail on signature check');
+        }
+      },
+      {
+        name: 'Attack Scenario 5: Path & Query Tampering Rejection',
+        category: 'Security Defenses',
+        desc: 'Altering HTTP method, path, or query string fails canonical string binding',
+        fn: async () => {
+          const secretKey = 'shared-secret-path-demo';
+          const verifier = new ApiVerifier({ serverSecretKey: secretKey });
+
+          const signed = await signRequest({
+            method: 'GET',
+            path: '/api/v1/user/profile',
+            query: 'view=summary',
+            body: '',
+            secretKey
+          });
+
+          const attack = await simulatePathTampering(signed, verifier, secretKey);
+          assert(attack.result.ok === false, 'Route-tampered request must be rejected');
+          assertEqual(attack.result.details.stepFailed, 'signature', 'Must fail on signature check');
+        }
+      },
+      {
+        name: 'Missing Security Headers Rejection',
+        category: 'Verification Flow',
+        desc: 'Requests lacking X-Timestamp, X-Nonce, or X-Signature fail at Step 1',
+        fn: async () => {
+          const verifier = new ApiVerifier({ serverSecretKey: 'key' });
+          const incompleteReq = {
+            method: 'POST',
+            path: '/api/v1/test',
+            headers: { 'X-Timestamp': '1700000000' } // Missing Nonce & Signature
+          };
+
+          const res = await verifier.verifyRequest(incompleteReq);
+          assert(res.ok === false, 'Incomplete request must be rejected');
+          assertEqual(res.details.stepFailed, 'headers', 'Must fail on headers check');
+        }
+      },
+      {
+        name: 'Nonce Cache Purge and Clear Functionality',
+        category: 'Anti-Replay Architecture',
+        desc: 'clearNonceCache resets memory table, permitting nonce reuse after explicit clear',
+        fn: async () => {
+          const key = 'secret-cache-test';
+          const verifier = new ApiVerifier({ serverSecretKey: key, nonceTtlSec: 300 });
+
+          const signed = await signRequest({
+            method: 'POST',
+            path: '/api/v1/test',
+            body: '{"test":1}',
+            secretKey: key
+          });
+
+          // First pass
+          const first = await verifier.verifyRequest(signed);
+          assert(first.ok, 'First verify should pass');
+
+          // Second pass should fail
+          const second = await verifier.verifyRequest(signed);
+          assert(!second.ok, 'Second verify should fail replay');
+
+          // Clear cache
+          verifier.clearNonceCache();
+          assertEqual(verifier.getNonceCacheStats().size, 0, 'Cache must be empty');
+
+          // Now verify should pass again with cleared cache
+          const third = await verifier.verifyRequest(signed);
+          assert(third.ok, 'Verify should pass once nonce cache is cleared');
+        }
+      }
+    ];
+
+    /** Run test runner */
+    async function runAllTests() {
+      const tbody = document.getElementById('test-results-body');
+      tbody.innerHTML = '';
+
+      let passed = 0;
+      let failed = 0;
+      const startTime = performance.now();
+
+      for (let i = 0; i < tests.length; i++) {
+        const test = tests[i];
+        const row = document.createElement('tr');
+        const testStart = performance.now();
+        let status = 'pass';
+        let errorMsg = '';
+
+        try {
+          await test.fn();
+          passed++;
+        } catch (err) {
+          failed++;
+          status = 'fail';
+          errorMsg = err.message || String(err);
+          console.error(`Test ${i + 1} Failed (${test.name}):`, err);
+        }
+
+        const duration = Math.round(performance.now() - testStart);
+
+        row.innerHTML = `
+          <td class="mono" style="color: var(--text-muted);">${i + 1}</td>
+          <td>
+            <div class="test-name">${test.name}</div>
+            <div class="test-desc">${test.desc}</div>
+            ${errorMsg ? `<div style="color: var(--fail); font-family: var(--font-mono); font-size: 0.8rem; margin-top: 0.3rem;">⚠️ ${errorMsg}</div>` : ''}
+          </td>
+          <td><span class="mono" style="font-size: 0.8rem; color: var(--accent);">${test.category}</span></td>
+          <td>
+            <span class="badge ${status === 'pass' ? 'badge-pass' : 'badge-fail'}">
+              ${status === 'pass' ? '✓ PASS' : '✗ FAIL'}
+            </span>
+          </td>
+          <td class="mono" style="color: var(--text-muted);">${duration}ms</td>
+        `;
+        tbody.appendChild(row);
+      }
+
+      const totalDuration = Math.round(performance.now() - startTime);
+
+      document.getElementById('stat-total').textContent = tests.length;
+      document.getElementById('stat-passed').textContent = passed;
+      document.getElementById('stat-failed').textContent = failed;
+      document.getElementById('stat-duration').textContent = `${totalDuration}ms`;
+
+      // Expose to window for automated checks
+      window.__TEST_RESULTS__ = {
+        total: tests.length,
+        passed,
+        failed,
+        duration: totalDuration
+      };
+    }
+
+    document.getElementById('rerun-btn').addEventListener('click', runAllTests);
+
+    // Run automatically on load
+    runAllTests();
+  </script>
+</body>
+</html>

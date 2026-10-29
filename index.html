@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cryptographic Request Integrity & Authentication Framework | API Security Playground</title>
+  <meta name="description" content="Interactive browser-based playground demonstrating HMAC-SHA256 request signing, canonicalization, anti-replay nonces, and timestamp freshness verification.">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="brand-section">
+        <div class="brand-icon" aria-hidden="true">🔐</div>
+        <div class="brand-titles">
+          <h1>Cryptographic Request Integrity Framework</h1>
+          <p>HMAC-SHA256 Request Signing, Anti-Tamper & Anti-Replay API Security Playground</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <a href="tests/tests.html" id="nav-tests-btn" class="btn btn-secondary btn-sm" title="Open Browser Test Runner">
+          <!-- 🧪 Test Suite -->
+        </a>
+        <a href="docs/architecture.md" target="_blank" class="btn btn-secondary btn-sm" title="View Architecture & Sequence Diagrams">
+          📐 Architecture
+        </a>
+        <button id="theme-toggle-btn" class="btn btn-secondary btn-sm" aria-label="Toggle dark/light theme">
+          <span id="theme-icon">☀️</span> <span id="theme-label">Light Mode</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Global Settings Strip -->
+    <section class="settings-strip" aria-label="Security Parameters Configuration">
+      <div class="settings-group">
+        <div class="setting-item">
+          <label for="setting-tolerance">Timestamp Window:</label>
+          <input type="number" id="setting-tolerance" min="1" max="3600" value="60" aria-label="Timestamp tolerance window in seconds">
+          <span class="card-subtitle">seconds (±)</span>
+        </div>
+        <div class="setting-item">
+          <label for="setting-ttl">Nonce TTL:</label>
+          <input type="number" id="setting-ttl" min="5" max="86400" value="300" aria-label="Nonce cache time to live in seconds">
+          <span class="card-subtitle">seconds</span>
+        </div>
+        <div class="setting-item">
+          <span class="card-subtitle">Cached Nonces:</span>
+          <span id="nonce-cache-count" class="badge badge-info">0 nonces</span>
+        </div>
+      </div>
+      <div>
+        <button id="clear-cache-btn" class="btn btn-secondary btn-sm" title="Purge in-memory nonce cache">
+          🧹 Clear Nonce Cache
+        </button>
+      </div>
+    </section>
+
+    <!-- Main Two-Column Interactive Grid -->
+    <main class="main-grid">
+      <!-- Left Column: Client / Request Builder & Signer -->
+      <section class="column-client" aria-labelledby="client-panel-title">
+        <!-- Request Builder Card -->
+        <article class="card">
+          <div class="card-header">
+            <div>
+              <h2 id="client-panel-title" class="card-title">
+                <span>📤</span> Client Request Builder
+              </h2>
+              <div class="card-subtitle">Construct and parameterize an outbound API request</div>
+            </div>
+            <button id="demo-fill-btn" class="btn btn-secondary btn-sm" title="Fill with example financial transfer payload">
+              ✨ Quick Demo
+            </button>
+          </div>
+
+          <form id="request-builder-form" onsubmit="return false;">
+            <!-- HTTP Method & Path -->
+            <div class="http-bar">
+              <div class="form-group">
+                <label for="req-method" class="form-label">Method</label>
+                <select id="req-method" class="form-control">
+                  <option value="POST" selected>POST</option>
+                  <option value="GET">GET</option>
+                  <option value="PUT">PUT</option>
+                  <option value="DELETE">DELETE</option>
+                  <option value="PATCH">PATCH</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="req-path" class="form-label">Endpoint Path</label>
+                <input type="text" id="req-path" class="form-control form-control-mono" value="/api/v1/payments/transfer" placeholder="/api/v1/resource">
+              </div>
+            </div>
+
+            <!-- Query Parameters -->
+            <div class="form-group">
+              <label for="req-query" class="form-label">
+                <span>Query String (Unsorted or raw)</span>
+                <span class="card-subtitle">Will be canonically sorted</span>
+              </label>
+              <input type="text" id="req-query" class="form-control form-control-mono" value="priority=high&currency=USD&notify=true" placeholder="key=val&alpha=1">
+            </div>
+
+            <!-- Shared Secret Key Input -->
+            <div class="form-group">
+              <div class="form-label">
+                <label for="req-secret">Shared Secret Key (HMAC Key)</label>
+                <span class="card-subtitle">In-memory only (Never saved to localStorage)</span>
+              </div>
+              <div class="input-with-button">
+                <input type="password" id="req-secret" class="form-control form-control-mono" value="4f8a3d1c9b2e5f7a0d4c8e1b6f3a7d2e9c1b5a8f0e4d7c2a1b9f6e3d8c5b0a7f" placeholder="Enter hex string or passphrase">
+                <button type="button" id="toggle-secret-visibility-btn" class="btn-icon" aria-label="Toggle secret key visibility" title="Show/Hide Key">
+                  👁️
+                </button>
+                <button type="button" id="generate-key-btn" class="btn btn-secondary btn-sm" title="Generate cryptographically secure 256-bit random key">
+                  🎲 Random 256-bit
+                </button>
+              </div>
+            </div>
+
+            <!-- Key ID -->
+            <div class="form-group">
+              <label for="req-key-id" class="form-label">Key ID (X-Key-Id Header)</label>
+              <input type="text" id="req-key-id" class="form-control form-control-mono" value="client-app-prod-01">
+            </div>
+
+            <!-- Request Body -->
+            <div class="form-group">
+              <div class="form-label">
+                <label for="req-body">Request Body (JSON)</label>
+                <button type="button" id="format-json-btn" class="copy-btn">Format JSON</button>
+              </div>
+              <textarea id="req-body" class="form-control form-control-mono" rows="5">{
+  "senderAccountId": "ACC-99210",
+  "recipientAccountId": "ACC-44102",
+  "amount": 2500.00,
+  "currency": "USD",
+  "memo": "Vendor invoice settlement"
+}</textarea>
+            </div>
+
+            <!-- Action Buttons -->
+            <div style="display: flex; gap: 0.75rem; margin-top: 1.25rem;">
+              <button type="button" id="sign-request-btn" class="btn btn-primary" style="flex: 1;">
+                <span>✍️</span> Sign Request (HMAC-SHA256)
+              </button>
+              <button type="button" id="reset-builder-btn" class="btn btn-secondary">
+                Reset
+              </button>
+            </div>
+          </form>
+        </article>
+
+        <!-- Cryptographic Canonical Breakdown & Headers Output -->
+        <article class="card">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title">
+                <span>🔬</span> Canonical Breakdown & Headers
+              </h3>
+              <div class="card-subtitle">Deterministic string representation signed with HMAC-SHA256</div>
+            </div>
+          </div>
+
+          <!-- 6-Part Canonical Breakdown -->
+          <div class="canonical-parts" aria-label="Canonical representation components">
+            <div class="canonical-part">
+              <span class="part-name">1. Method:</span>
+              <span id="disp-method" class="part-val">POST</span>
+            </div>
+            <div class="canonical-part">
+              <span class="part-name">2. Normalized Path:</span>
+              <span id="disp-path" class="part-val">/api/v1/payments/transfer</span>
+            </div>
+            <div class="canonical-part">
+              <span class="part-name">3. Sorted Query:</span>
+              <span id="disp-query" class="part-val">currency=USD&notify=true&priority=high</span>
+            </div>
+            <div class="canonical-part">
+              <span class="part-name">4. Timestamp (s):</span>
+              <span id="disp-timestamp" class="part-val">—</span>
+            </div>
+            <div class="canonical-part">
+              <span class="part-name">5. Nonce (128-bit):</span>
+              <span id="disp-nonce" class="part-val">—</span>
+            </div>
+            <div class="canonical-part">
+              <span class="part-name">6. Body SHA-256:</span>
+              <span id="disp-bodyhash" class="part-val">—</span>
+            </div>
+          </div>
+
+          <!-- Raw Canonical String -->
+          <div class="form-group">
+            <div class="code-box-header">
+              <span>RAW CANONICAL STRING (Newline Delimited)</span>
+              <button type="button" class="copy-btn" data-target="disp-canonical-raw">Copy</button>
+            </div>
+            <pre id="disp-canonical-raw" class="code-box" style="height: 100px;">Click "Sign Request" to generate...</pre>
+          </div>
+
+          <!-- HMAC Signature -->
+          <div class="form-group">
+            <div class="code-box-header">
+              <span>COMPUTED HMAC-SHA256 SIGNATURE (Hex)</span>
+              <button type="button" class="copy-btn" data-target="disp-signature">Copy</button>
+            </div>
+            <div id="disp-signature" class="code-box" style="height: auto; font-weight: bold; color: #10b981;">—</div>
+          </div>
+
+          <!-- Generated HTTP Headers -->
+          <div class="form-group">
+            <div class="code-box-header">
+              <span>GENERATED SECURITY HEADERS</span>
+              <button type="button" class="copy-btn" data-target="disp-headers-raw">Copy</button>
+            </div>
+            <pre id="disp-headers-raw" class="code-box" style="height: 105px;">—</pre>
+          </div>
+        </article>
+      </section>
+
+      <!-- Right Column: Simulated Server Verifier & Attack Laboratory -->
+      <section class="column-server" aria-labelledby="server-panel-title">
+        <!-- Server Verifier Card -->
+        <article class="card">
+          <div class="card-header">
+            <div>
+              <h2 id="server-panel-title" class="card-title">
+                <span>🛡️</span> Server API Verifier
+              </h2>
+              <div class="card-subtitle">Zero-trust cryptographic verification engine</div>
+            </div>
+            <div id="verification-status-badge" class="badge badge-neutral">
+              Awaiting Request
+            </div>
+          </div>
+
+          <!-- Action trigger -->
+          <button type="button" id="send-to-server-btn" class="btn btn-success" style="width: 100%; margin-bottom: 1rem;">
+            <span>🚀</span> Send to Server (Run Verification Pipeline)
+          </button>
+
+          <!-- Verification Outcome Banner -->
+          <div id="verification-outcome-banner" style="display: none; padding: 0.85rem; border-radius: var(--radius-sm); margin-bottom: 1rem; font-size: 0.85rem;">
+            <!-- Injected by UI -->
+          </div>
+
+          <!-- Step-by-Step Verification Checklist -->
+          <div class="verifier-steps" id="verifier-steps-container">
+            <!-- Step 1 -->
+            <div class="step-card" id="step-card-headers">
+              <div class="step-icon">📋</div>
+              <div class="step-content">
+                <div class="step-header">
+                  <div class="step-title">Step 1: Check Security Headers</div>
+                  <span class="badge badge-neutral step-badge">Pending</span>
+                </div>
+                <div class="step-desc">Confirms presence of X-Timestamp, X-Nonce, and X-Signature headers.</div>
+                <div class="step-details" style="display: none;"></div>
+              </div>
+            </div>
+
+            <!-- Step 2 -->
+            <div class="step-card" id="step-card-timestamp">
+              <div class="step-icon">⏱️</div>
+              <div class="step-content">
+                <div class="step-header">
+                  <div class="step-title">Step 2: Timestamp Freshness Window</div>
+                  <span class="badge badge-neutral step-badge">Pending</span>
+                </div>
+                <div class="step-desc">Ensures |server_now - timestamp| <= tolerance window (bounds replay attack window).</div>
+                <div class="step-details" style="display: none;"></div>
+              </div>
+            </div>
+
+            <!-- Step 3 -->
+            <div class="step-card" id="step-card-nonce">
+              <div class="step-icon">🎫</div>
+              <div class="step-content">
+                <div class="step-header">
+                  <div class="step-title">Step 3: Nonce Cache & Anti-Replay</div>
+                  <span class="badge badge-neutral step-badge">Pending</span>
+                </div>
+                <div class="step-desc">Verifies nonce has not been seen in the active cache.</div>
+                <div class="step-details" style="display: none;"></div>
+              </div>
+            </div>
+
+            <!-- Step 4 -->
+            <div class="step-card" id="step-card-canonical">
+              <div class="step-icon">⚙️</div>
+              <div class="step-content">
+                <div class="step-header">
+                  <div class="step-title">Step 4: Reconstruct Canonical Digest</div>
+                  <span class="badge badge-neutral step-badge">Pending</span>
+                </div>
+                <div class="step-desc">Recalculates body SHA-256 and rebuilds server-side canonical string.</div>
+                <div class="step-details" style="display: none;"></div>
+              </div>
+            </div>
+
+            <!-- Step 5 -->
+            <div class="step-card" id="step-card-signature">
+              <div class="step-icon">🔒</div>
+              <div class="step-content">
+                <div class="step-header">
+                  <div class="step-title">Step 5: Constant-Time HMAC Signature Check</div>
+                  <span class="badge badge-neutral step-badge">Pending</span>
+                </div>
+                <div class="step-desc">Compares server-computed HMAC with client signature using constantTimeEqual().</div>
+                <div class="step-details" style="display: none;"></div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- Attack Simulation Laboratory Card -->
+        <article class="card">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title">
+                <span>💥</span> Attack Simulation Laboratory
+              </h3>
+              <div class="card-subtitle">One-click real-world threat simulation and defenses</div>
+            </div>
+          </div>
+
+          <div class="attacks-grid">
+            <!-- Attack 1: Payload Tampering -->
+            <button type="button" class="attack-btn-card" id="attack-payload-btn">
+              <div class="attack-badge"><span>⚠️</span> Threat #1</div>
+              <div class="attack-title">Payload Tampering</div>
+              <div class="attack-desc">Attacker modifies transfer amount in flight ($2,500 ➔ $2,500,000) while keeping signature.</div>
+            </button>
+
+            <!-- Attack 2: Replay Attack -->
+            <button type="button" class="attack-btn-card" id="attack-replay-btn">
+              <div class="attack-badge"><span>⚠️</span> Threat #2</div>
+              <div class="attack-title">Replay Attack</div>
+              <div class="attack-desc">Attacker captures an authentic valid wire request and resends identical packet to duplicate transfer.</div>
+            </button>
+
+            <!-- Attack 3: Expired Request -->
+            <button type="button" class="attack-btn-card" id="attack-expired-btn">
+              <div class="attack-badge"><span>⚠️</span> Threat #3</div>
+              <div class="attack-title">Expired Timestamp</div>
+              <div class="attack-desc">Attacker attempts to deliver a captured signed request after the freshness window has elapsed.</div>
+            </button>
+
+            <!-- Attack 4: Wrong Secret Key -->
+            <button type="button" class="attack-btn-card" id="attack-wrongkey-btn">
+              <div class="attack-badge"><span>⚠️</span> Threat #4</div>
+              <div class="attack-title">Forged Key / Impersonation</div>
+              <div class="attack-desc">Attacker signs payload using an unauthorized forged key or invalid credentials.</div>
+            </button>
+
+            <!-- Attack 5: Route / Path Tampering -->
+            <button type="button" class="attack-btn-card" id="attack-path-btn">
+              <div class="attack-badge"><span>⚠️</span> Threat #5</div>
+              <div class="attack-title">Path & Query Tampering</div>
+              <div class="attack-desc">Attacker alters endpoint route to admin deletion or injects elevated privilege query parameters.</div>
+            </button>
+
+            <!-- Attack 6: Timing Attack Card -->
+            <button type="button" class="attack-btn-card" id="attack-timing-btn" style="border-color: rgba(56, 189, 248, 0.4);">
+              <div class="attack-badge" style="color: var(--accent-cyan);"><span>🔍</span> Side-Channel</div>
+              <div class="attack-title">Timing Attack Analysis</div>
+              <div class="attack-desc">Interactive comparison: Naive early-exit comparison vs Constant-time comparison demo.</div>
+            </button>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <!-- Real-time Security Event Log -->
+    <section class="card" aria-labelledby="event-log-title">
+      <div class="card-header">
+        <div>
+          <h3 id="event-log-title" class="card-title">
+            <span>📜</span> Real-Time Security Audit Event Log
+          </h3>
+          <div class="card-subtitle">Live stream of verification decisions and attack prevention telemetry</div>
+        </div>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+          <button type="button" class="btn btn-secondary btn-sm" id="log-filter-all">All</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="log-filter-accepted">Accepted</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="log-filter-rejected">Rejected</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="clear-log-btn">Clear Log</button>
+        </div>
+      </div>
+      <div id="event-log-list" class="event-log-container">
+        <!-- Log entries populated here -->
+        <div class="log-entry" style="border-left-color: var(--accent-cyan);">
+          <span class="log-time">SYSTEM</span>
+          <span class="badge badge-info">INFO</span>
+          <span class="log-msg">Cryptographic Request Integrity playground initialized. Subsystem ready.</span>
+          <span></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Educational "How It Works" Section -->
+    <section class="card" aria-labelledby="how-it-works-title">
+      <div class="card-header">
+        <div>
+          <h3 id="how-it-works-title" class="card-title">
+            <span>📚</span> Architectural Reference & Theory of Operation
+          </h3>
+          <div class="card-subtitle">Core principles of HMAC API integrity, anti-replay nonces, and side-channel mitigation</div>
+        </div>
+      </div>
+
+      <div class="educational-grid">
+        <div class="edu-card">
+          <h4><span>1.</span> Canonicalization</h4>
+          <p>
+            HTTP headers and query strings are non-deterministic by default. To compute a verifiable signature, both client and server strictly sort query parameters alphabetically, normalize paths, and bind the HTTP Method and SHA-256 body hash into a deterministic newline-delimited canonical string before computing the HMAC.
+          </p>
+        </div>
+
+        <div class="edu-card">
+          <h4><span>2.</span> Anti-Replay Nonce Cache</h4>
+          <p>
+            A <strong>nonce</strong> (number used once) is a cryptographically random 128-bit hex token generated for each request. The server records consumed nonces in an in-memory cache with a Time-To-Live (TTL). If an attacker captures and replays an authentic message, the duplicate nonce is identified and rejected immediately.
+          </p>
+        </div>
+
+        <div class="edu-card">
+          <h4><span>3.</span> Freshness Tolerance Window</h4>
+          <p>
+            Servers cannot store nonces indefinitely without memory exhaustion. The <strong>Timestamp Tolerance Window</strong> (e.g. ±60 seconds) strictly bounds how long a request is valid. Nonces older than the tolerance window expire safely from memory because stale timestamps are rejected before the nonce cache is consulted.
+          </p>
+        </div>
+
+        <div class="edu-card">
+          <h4><span>4.</span> Constant-Time Comparison</h4>
+          <p>
+            Standard string equality operators (<code>===</code>) terminate execution immediately on the first mismatched byte. Attackers measuring sub-microsecond response variations can deduce signatures character by character. <code>constantTimeEqual()</code> iterates through all characters uniformly using bitwise XOR accumulation, neutralizing timing attacks.
+          </p>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Timing Attack Interactive Modal -->
+  <div id="timing-attack-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-timing-title">
+    <div class="modal-content">
+      <div class="card-header">
+        <div>
+          <h3 id="modal-timing-title" class="card-title">
+            <span>⏱️</span> Timing Attack & Side-Channel Mitigation Explorer
+          </h3>
+          <div class="card-subtitle">Why naive string comparisons leak cryptographic signatures</div>
+        </div>
+        <button type="button" id="close-timing-modal-btn" class="btn-icon" aria-label="Close modal">✕</button>
+      </div>
+
+      <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+        <p>
+          In a naive comparison (<code>stringA === stringB</code>), the CPU aborts evaluation at the first mismatched character. An adversary sending candidate signatures can observe miniscule differences in execution duration to determine how many consecutive characters matched.
+        </p>
+      </div>
+
+      <div style="margin-bottom: 1rem;">
+        <div class="form-label">
+          <span>Target Valid HMAC-SHA256 Signature (64 Hex Chars)</span>
+        </div>
+        <div id="timing-target-sig" class="code-box" style="height: auto; color: #10b981; font-weight: bold;">
+          5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843
+        </div>
+      </div>
+
+      <button type="button" id="run-timing-benchmark-btn" class="btn btn-primary btn-sm" style="margin-bottom: 1rem;">
+        ⚡ Run Candidate Probe Comparison
+      </button>
+
+      <div class="table-container" style="max-height: 250px; overflow-y: auto;">
+        <table style="font-size: 0.78rem;">
+          <thead>
+            <tr>
+              <th>Attacker Candidate Signature</th>
+              <th>Matched Prefix</th>
+              <th>Naive Loop Checks</th>
+              <th>Constant-Time Checks</th>
+              <th>Side-Channel Risk</th>
+            </tr>
+          </thead>
+          <tbody id="timing-benchmark-tbody">
+            <tr>
+              <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
+                Click "Run Candidate Probe Comparison" to evaluate candidate probes.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="margin-top: 1.25rem; text-align: right;">
+        <button type="button" id="close-timing-modal-btn-bottom" class="btn btn-secondary btn-sm">Close Explorer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+  <!-- Application Entry Point (ES Modules) -->
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
